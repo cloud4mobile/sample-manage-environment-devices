@@ -1,0 +1,324 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>How-To: Query the Environment's Devices</title>
+
+        <meta charset="utf-8" />
+        <meta name="description" content="" />
+        <meta name="author" content="Mobiltec Sistemas de Computação Móvel" />
+        <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+        
+        <script type="text/javascript" src="//localhost/C4M/scripts/c4m-api-v1.js"></script>
+        <script type="text/javascript" src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+        <script type="text/javascript" src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="//www.jsviews.com/download/jsrender.min.js"></script>
+
+        <script>
+            var authentication = null;
+            var usersEnvironment = null;
+            var SAVED_CONSUMER_KEY = "consumerKey";
+            var SAVED_CONSUMER_SECRET = "consumerSecret";
+            
+            /**
+            * Method called when the query button is clicked.
+            *
+            * Obtains the informed Consumer Key and Consumer Secret, creates a new Authentication and uses this authentication to query the user's environment.
+            */
+            function getEnvironments() {
+                var consumerKey = $("#consumerKey").val();
+                var consumerSecret = $("#consumerSecret").val();
+
+                localStorage.setItem(SAVED_CONSUMER_KEY, consumerKey);
+                localStorage.setItem(SAVED_CONSUMER_SECRET, consumerSecret);
+
+                authentication = new C4MAuthentication(consumerKey, consumerSecret);
+                
+                // query the user's environment
+                var environmentApi = new C4MEnvironmentApi(authentication);
+                environmentApi.getEnvironmentByUser(consumerKey, onEnvironmentReceived, onError);
+            }
+
+            /**
+            * Method called when the query for the user's environment is completed successfully.
+            *
+            * Shows the environment and query the devices of this environment.
+            */
+            function onEnvironmentReceived(environment) {
+                usersEnvironment = environment;
+
+                var environmentTemplate = $.templates("#environmentTemplate");
+                var html = environmentTemplate.render(environment);
+                $("#environment").html(html);
+
+                // shows the results panel
+                $("#pnlResult").css("visibility", "visible");
+
+                // query the environment's devices
+                var deviceApi = new C4MDeviceApi(authentication);
+
+                deviceApi.getDevices(usersEnvironment, function(devices) {
+                    var deviceTemplate = $.templates("#deviceTemplate");
+                    html = deviceTemplate.render(devices);
+                    $("#devices").html(html);
+                }, onError);
+            }
+            
+            /**
+            * Method called when a error occurs while performing a query
+            *
+            * Shows the status
+            */
+            function onError(xhr, status) {
+                alert("Error: " + status);
+            }
+
+            /**
+            * Method called when the delete button is clicked
+            *
+            * Shows a confirmation dialog.
+            */
+            function deleteDevice(deviceId) {
+                $("#btnConfirm").on("click", function() { confirmDeleteDevice(deviceId); });
+                $("#modalConfirm").modal("show");
+            }
+
+            /**
+            * Method called when user confirms to delete the device.
+            *
+            * Deletes the device.
+            */
+            function confirmDeleteDevice(deviceId) {
+                $("#btnConfirm").off("click");
+                $("#modalConfirm").modal("hide");
+
+                var deviceApi = new C4MDeviceApi(authentication);
+
+                deviceApi.deleteDevice(usersEnvironment, deviceId, function() {
+                    //remove this device from devices table
+                    $("#device{0}".format(deviceId)).remove();
+                }, onError);
+            }
+
+            /**
+             * Method called when the Last Location button is clicked.
+             *
+             * Query the device's last known location
+             */
+            function getLastLocation(deviceId) {
+                var locationApi = new C4MLocationApi(authentication);
+
+                locationApi.getLastDeviceLocation(deviceId, function(location) {
+                    // displays the last location of the device in a new window if it is known
+                    if (location != undefined) {
+                        var link = "http://maps.google.com/maps?q={0},{1}&z=7".format(location.coordinate.latitude, location.coordinate.longitude);
+                        var locationWindow = window.open(link, '_blank');
+
+                        if (locationWindow != undefined) {
+                            locationWindow.focus();
+                        }
+                    } else {
+                        alert("This device location is unknown.");
+                    }
+                }, onError);
+            }
+
+            // attach to then ajaxStart event to show a waiting message
+            $(document).ajaxStart(function () {
+                $('#modalWait').modal('show');
+            });
+
+            // attach to the ajaxStop event to hide the waiting message
+            $(document).ajaxStop(function () {
+                $("#modalWait").modal('hide');
+            });
+
+            // attach to the document ready event to reload the previously filled information
+            $(document).ready(function() {
+                var consumerKey = localStorage.getItem(SAVED_CONSUMER_KEY);
+                var consumerSecret = localStorage.getItem(SAVED_CONSUMER_SECRET);
+                $("#consumerKey").val(consumerKey);
+                $("#consumerSecret").val(consumerSecret);
+
+                // if the consumer key and the consumer secret are valid then recreates the authentication
+                if (consumerKey != undefined && consumerSecret != undefined && consumerKey.trim() && consumerSecret.trim()) {
+                    authentication = new C4MAuthentication(consumerKey, consumerSecret);
+                }
+            });
+        </script>
+
+        <script id="deviceTemplate" type="text/x-jsrender">
+            <tr id="device{{:id}}" class="device">
+                <td>{{:hardwareId}}</td>
+                <td>{{:creationDate}}</td>
+                <td width="20%">{{:consumerKey}}</td>
+                <td width="20%">{{:consumerSecret}}</td>
+                <td>
+                    <button class="btn btn-default btn-xs" type="button" onclick="javascript:getLastLocation({{:id}})">
+                        Last Location
+                    </button>
+                    <button class="btn btn-default btn-xs" type="button" onclick="javascript:deleteDevice({{:id}})">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        </script>
+        
+        <script id="environmentTemplate" type="text/x-jsrender">            
+            <div class="row">
+                <div class="col-xs-6 col-md-3"><em>Id:</em></div>
+                <div class="col-xs-6">{{:id}}</div>
+            </div>
+            <div class="row">
+                <div class="col-xs-6 col-md-3"><em>Created At:</em></div>
+                <div class="col-xs-6">{{:creationDate}}</div>
+            </div>
+            <div class="row">
+                <div class="col-xs-6 col-md-3"><em>Device Enroll Code:</em></div>
+                <div class="col-xs-6">{{:deviceEnrollCode}}</div>
+            </div>
+        </script>
+    
+        <style type="text/css">
+            body {
+                height: 100%;
+            }
+
+            .device {
+                -ms-word-wrap: break-word;
+                word-wrap: break-word;
+                -ms-word-break: break-all;
+                -moz-word-break: break-all;
+                -o-word-break: break-all;
+                word-break: break-all;
+            }
+        </style>
+
+    </head>
+<body>
+    <div class="container">
+        <div class="row clearfix">
+            <div class="col-md-12">
+                <div class="page-header">
+                    <h1>
+                        How-To: Query the Environment's Devices
+                    </h1>
+                </div>
+                
+                <div class="row clearfix">
+                    <div class="col-md-12">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>
+                                    This example shows how to query the devices of an environment. To proceed, the following information is required and will be used to create an authorization token which grants access to the desired information through our Web API.
+                                </p>
+
+                                <ul>
+                                    <li>
+                                        <b>Consumer Key</b> is the user's unique key. This key gives the user access to a specific environment. .
+                                    </li>
+                                    <li>
+                                        <b>Consumer Secret</b> is the user's secret. All requests related to the environment (identified by the user's consumer key) are signed using this secret..
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row clearfix">
+                    <div class="col-md-12">
+                        <div class="form-horizontal" role="form">
+                            <div class="form-group col-sm-5">
+                                <label for="consumerKey" class="col-sm-5 control-label">Consumer Key</label>
+                                <div class="col-sm-7">
+                                    <input id="consumerKey" type="text" class="form-control" placeholder="Consumer Key">
+                                </div>
+                            </div>
+
+                            <div class="form-group col-sm-5">
+                                <label for="consumerSecret" class="col-sm-5 control-label">Consumer Secret</label>
+                                <div class="col-sm-7">
+                                    <input id="consumerSecret" type="text" class="form-control" placeholder="Consumer Secret">
+                                </div>
+                            </div>
+
+                            <div class="form-group col-sm-2">
+                                <div class="col-sm-12">
+                                    <button class="btn btn-primary" onclick="javascript: getEnvironments();">Query</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="pnlResult" style="visibility: hidden;">
+                    <h3 class="page-header">Environment</h3>
+
+                    <div class="row clearfix">
+                        <div class="col-md-12">
+                            <div class="row clearfix">
+                                <div class="col-md-12">
+                                    <div class="panel panel-default">
+                                        <div class="panel-body">
+                                            <p>The environment is the area of ​​cloud4mobile where devices are managed.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="environment">
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="page-header">Devices</h3>
+
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Device Id</th>
+                                <th>Created At</th>
+                                <th>Consumer Key</th>
+                                <th>Consumer Secret</th>
+                                <th>&nbsp;</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devices"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalWait" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog  modal-sm">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <img src="data:image/gif;base64,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" id="loading-indicator" alt="Loading..." /> Please wait...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalConfirm" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="modalConfirmLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 class="modal-title" id="myModalLabel">Confirmation</h4>
+                </div>
+                <div class="modal-body">
+                    Are you sure?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">No</button>
+                    <button id="btnConfirm" type="button" class="btn btn-primary">Yes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
