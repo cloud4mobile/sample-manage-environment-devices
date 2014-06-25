@@ -1,201 +1,266 @@
 ﻿<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <title>How-To: Query the Environment's Devices</title>
+<head>
+    <title>How-To: Query the Environment's Devices</title>
 
-        <meta charset="utf-8" />
-        <meta name="description" content="" />
-        <meta name="author" content="Mobiltec Sistemas de Computação Móvel" />
-        <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta charset="utf-8" />
+    <meta name="description" content="" />
+    <meta name="author" content="Mobiltec Sistemas de Computação Móvel" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
 
-        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
-        
-        <script type="text/javascript" src="http://localhost/C4M/scripts/c4m-api-v1.js"></script>
-        <script type="text/javascript" src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
-        <script type="text/javascript" src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
-        <script type="text/javascript" src="http://www.jsviews.com/download/jsrender.min.js"></script>
-
-        <script>
-            var authentication = null;
-            var usersEnvironment = null;
-            var SAVED_CONSUMER_KEY = "consumerKey";
-            var SAVED_CONSUMER_SECRET = "consumerSecret";
-            
-            /**
-            * Method called when the query button is clicked.
-            *
-            * Obtains the informed Consumer Key and Consumer Secret, creates a new Authentication and uses this authentication to query the user's environment.
-            */
-            function getEnvironments() {
-                var consumerKey = $("#consumerKey").val();
-                var consumerSecret = $("#consumerSecret").val();
-
-                localStorage.setItem(SAVED_CONSUMER_KEY, consumerKey);
-                localStorage.setItem(SAVED_CONSUMER_SECRET, consumerSecret);
-
-                authentication = new C4MAuthentication(consumerKey, consumerSecret);
-                
-                // query the user's environment
-                var environmentApi = new C4MEnvironmentApi(authentication);
-                environmentApi.getEnvironmentByUser(consumerKey, onEnvironmentReceived, onError);
-            }
-
-            /**
-            * Method called when the query for the user's environment is completed successfully.
-            *
-            * Shows the environment and query the devices of this environment.
-            */
-            function onEnvironmentReceived(environment) {
-                usersEnvironment = environment;
-
-                var environmentTemplate = $.templates("#environmentTemplate");
-                var html = environmentTemplate.render(environment);
-                $("#environment").html(html);
-
-                // shows the results panel
-                $("#pnlResult").css("visibility", "visible");
-
-                // query the environment's devices
-                var deviceApi = new C4MDeviceApi(authentication);
-
-                deviceApi.getDevices(usersEnvironment, function(devices) {
-                    var deviceTemplate = $.templates("#deviceTemplate");
-                    html = deviceTemplate.render(devices);
-                    $("#devices").html(html);
-                }, onError);
-            }
-            
-            /**
-            * Method called when a error occurs while performing a query
-            *
-            * Shows the status
-            */
-            function onError(xhr, status) {
-                alert("Error: " + status);
-            }
-
-            /**
-            * Method called when the delete button is clicked
-            *
-            * Shows a confirmation dialog.
-            */
-            function deleteDevice(deviceId) {
-                $("#btnConfirm").on("click", function() { confirmDeleteDevice(deviceId); });
-                $("#modalConfirm").modal("show");
-            }
-
-            /**
-            * Method called when user confirms to delete the device.
-            *
-            * Deletes the device.
-            */
-            function confirmDeleteDevice(deviceId) {
-                $("#btnConfirm").off("click");
-                $("#modalConfirm").modal("hide");
-
-                var deviceApi = new C4MDeviceApi(authentication);
-
-                deviceApi.deleteDevice(usersEnvironment, deviceId, function() {
-                    //remove this device from devices table
-                    $("#device{0}".format(deviceId)).remove();
-                }, onError);
-            }
-
-            /**
-             * Method called when the Last Location button is clicked.
-             *
-             * Query the device's last known location
-             */
-            function getLastLocation(deviceId) {
-                var locationApi = new C4MLocationApi(authentication);
-
-                locationApi.getLastDeviceLocation(deviceId, function(location) {
-                    // displays the last location of the device in a new window if it is known
-                    if (location != undefined) {
-                        var link = "http://maps.google.com/maps?q={0},{1}&z=7".format(location.coordinate.latitude, location.coordinate.longitude);
-                        var locationWindow = window.open(link, '_blank');
-
-                        if (locationWindow != undefined) {
-                            locationWindow.focus();
-                        }
-                    } else {
-                        alert("This device location is unknown.");
-                    }
-                }, onError);
-            }
-
-            // attach to then ajaxStart event to show a waiting message
-            $(document).ajaxStart(function () {
-                $('#modalWait').modal('show');
-            });
-
-            // attach to the ajaxStop event to hide the waiting message
-            $(document).ajaxStop(function () {
-                $("#modalWait").modal('hide');
-            });
-
-            // attach to the document ready event to reload the previously filled information
-            $(document).ready(function() {
-                var consumerKey = localStorage.getItem(SAVED_CONSUMER_KEY);
-                var consumerSecret = localStorage.getItem(SAVED_CONSUMER_SECRET);
-                $("#consumerKey").val(consumerKey);
-                $("#consumerSecret").val(consumerSecret);
-
-                // if the consumer key and the consumer secret are valid then recreates the authentication
-                if (consumerKey != undefined && consumerSecret != undefined && consumerKey.trim() && consumerSecret.trim()) {
-                    authentication = new C4MAuthentication(consumerKey, consumerSecret);
-                }
-            });
-        </script>
-
-        <script id="deviceTemplate" type="text/x-jsrender">
-            <tr id="device{{:id}}" class="device">
-                <td>{{:hardwareId}}</td>
-                <td>{{:creationDate}}</td>
-                <td width="20%">{{:consumerKey}}</td>
-                <td width="20%">{{:consumerSecret}}</td>
-                <td>
-                    <button class="btn btn-default btn-xs" type="button" onclick="javascript:getLastLocation({{:id}})">
-                        Last Location
-                    </button>
-                    <button class="btn btn-default btn-xs" type="button" onclick="javascript:deleteDevice({{:id}})">
-                        Delete
-                    </button>
-                </td>
-            </tr>
-        </script>
-        
-        <script id="environmentTemplate" type="text/x-jsrender">            
-            <div class="row">
-                <div class="col-xs-6 col-md-3"><em>Id:</em></div>
-                <div class="col-xs-6">{{:id}}</div>
-            </div>
-            <div class="row">
-                <div class="col-xs-6 col-md-3"><em>Created At:</em></div>
-                <div class="col-xs-6">{{:creationDate}}</div>
-            </div>
-            <div class="row">
-                <div class="col-xs-6 col-md-3"><em>Device Enroll Code:</em></div>
-                <div class="col-xs-6">{{:deviceEnrollCode}}</div>
-            </div>
-        </script>
+    <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" />
     
-        <style type="text/css">
-            body {
-                height: 100%;
-            }
+    <script id="c4mApi" type="text/javascript" src="http://cloud4mobile-v1.cloudapp.net/C4M/scripts/c4m-api-v1.js"></script>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script type="text/javascript" src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="http://www.jsviews.com/download/jsrender.min.js"></script>
+    <script src="http://maps.googleapis.com/maps/api/js?&amp;sensor=true&amp;v=3.15"></script>
 
-            .device {
-                -ms-word-wrap: break-word;
-                word-wrap: break-word;
-                -ms-word-break: break-all;
-                -moz-word-break: break-all;
-                -o-word-break: break-all;
-                word-break: break-all;
-            }
-        </style>
+    <script>
+        //<![CDATA[
+        var authentication = null;
+        var SAVED_CONSUMER_KEY = "consumerKey";
+        var SAVED_CONSUMER_SECRET = "consumerSecret";
 
-    </head>
+        /**
+        * Method called when the query button is clicked.
+        *
+        * Obtains the informed Consumer Key and Consumer Secret, creates a new Authentication and uses this authentication to query the user's environment.
+        */
+        function getEnvironments() {
+            var consumerKey = $("#consumerKey").val();
+            var consumerSecret = $("#consumerSecret").val();
+
+            localStorage.setItem(SAVED_CONSUMER_KEY, consumerKey);
+            localStorage.setItem(SAVED_CONSUMER_SECRET, consumerSecret);
+
+            authentication = new window.C4MAuthentication(consumerKey, consumerSecret);
+
+            // query the user's environment
+            var environmentApi = new window.C4MEnvironmentApi(authentication);
+
+            environmentApi.getEnvironment(onEnvironmentReceived, onError);
+        }
+
+        /**
+        * Method called when the query for the user's environment is completed successfully.
+        *
+        * Shows the environment and query the devices of this environment.
+        */
+        function onEnvironmentReceived(environment) {
+
+            var environmentTemplate = $.templates("#environmentTemplate");
+            var html = environmentTemplate.render(environment);
+            $("#environment").html(html);
+
+            // shows the results panel
+            $("#pnlResult").css("visibility", "visible");
+
+            // query the environment's devices
+            var deviceApi = new window.C4MDeviceApi(authentication);
+
+            deviceApi.getDevices(function(devices) {
+                var deviceTemplate = $.templates("#deviceTemplate");
+                html = deviceTemplate.render(devices);
+                $("#devices").html(html);
+            }, onError);
+        }
+
+        /**
+        * Method called when a error occurs while performing a query
+        *
+        * Shows the status
+        */
+        function onError(xhr, status, exception) {
+            alert("Error: " + exception);
+        }
+
+        /**
+        * Method called when the delete button is clicked
+        *
+        * Shows a confirmation dialog.
+        */
+        function deleteDevice(deviceId) {
+            // deletes the event handlers
+            $("#btnConfirm").off("click");
+
+            // adds a new event handler
+            $("#btnConfirm").on("click", function() { confirmDeleteDevice(deviceId); });
+            $("#modalConfirm").modal("show");
+        }
+
+        function toggleEnablement(deviceId, currentEnablement) {
+            var deviceApi = new window.C4MDeviceApi(authentication);
+
+            var desiredEnablement = !currentEnablement;
+            var enablementButton = $("#toggleEnablementButton{0}".format(deviceId));
+
+            deviceApi.setEnabled(deviceId, desiredEnablement, function() {
+                // deletes the event handlers
+                enablementButton.off("click");
+                // adds a new event handler
+                enablementButton.on("click", function() { toggleEnablement(deviceId, desiredEnablement); });
+                // sets the button text
+                enablementButton.text(desiredEnablement == true ? "Disable" : "Enable");
+            }, onError);
+        }
+
+        /**
+        * Method called when user confirms to delete the device.
+        *
+        * Deletes the device.
+        */
+        function confirmDeleteDevice(deviceId) {
+            $("#modalConfirm").modal("hide");
+
+            var deviceApi = new window.C4MDeviceApi(authentication);
+
+            deviceApi.deleteDevice(deviceId, function() {
+                //remove this device from devices table
+                $("#device{0}".format(deviceId)).remove();
+            }, onError);
+        }
+
+        /**
+         * Method called when the Last Location button is clicked.
+         *
+         * Query the device's last known location
+         */
+        function getLastLocation(deviceId) {
+            var locationApi = new window.C4MLocationApi(authentication);
+
+            locationApi.getLastDeviceLocation(deviceId, function(location) {
+                // displays the last location of the device in a modal
+                onOpenMap(location);
+            }, onError);
+        }
+
+        /**
+         * Method called when device's last location data exists.
+         *
+         * Shows the last location along with other data related to last location.
+         */
+        function onOpenMap(location) {
+            // set location according to last location
+            var mapLocation = new window.google.maps.LatLng(location.coordinate.latitude, location.coordinate.longitude);
+
+            // configure google maps visualization parameters
+            var mapOptions = {
+                zoom: 14,
+                center: mapLocation
+            };
+
+            // attach the map to a given canvas
+            var mapCanvas = new window.google.maps.Map($('#map-container')[0] , mapOptions);
+
+            // place the marker at the map.
+            var mapMarker = new window.google.maps.Marker({
+                position: mapLocation,
+                map: mapCanvas
+            });
+
+            // set the labels values according to last location data.
+            $('#lastLocationTime')[0].textContent = "Time: " + location.deviceDate.date;
+            $('#lastLocationSpeed')[0].textContent = "Speed: " + location.speed;
+            $('#lastLocationBearing')[0].textContent = "Bearing: " + location.bearing;
+            $('#lastLocationAccuracy')[0].textContent = "Accuracy: " + location.accuracy;
+
+            // show the map modal.
+            $("#modalMap").modal("show");
+
+            // when completed map modal load... 
+            $('#modalMap').on('shown.bs.modal', function() {
+                // ...resize canvas to fit map
+                window.google.maps.event.trigger(mapCanvas, "resize");
+                // and reset the map's center.
+                mapCanvas.setCenter(mapLocation);
+            });
+        }
+
+        // attach to the ajaxStart event to show a waiting message
+        $(document).ajaxStart(function() {
+            $('#modalWait').modal('show');
+        });
+
+        // attach to the ajaxStop event to hide the waiting message
+        $(document).ajaxStop(function() {
+            $("#modalWait").modal('hide');
+        });
+
+        // attach to the document ready event to reload the previously filled information
+        $(document).ready(function() {
+            var consumerKey = localStorage.getItem(SAVED_CONSUMER_KEY);
+            var consumerSecret = localStorage.getItem(SAVED_CONSUMER_SECRET);
+            $("#consumerKey").val(consumerKey);
+            $("#consumerSecret").val(consumerSecret);
+
+            // if the consumer key and the consumer secret are valid then recreates the authentication
+            if (consumerKey != undefined && consumerSecret != undefined && consumerKey.trim() && consumerSecret.trim()) {
+                authentication = new window.C4MAuthentication(consumerKey, consumerSecret);
+            }
+        });
+        //]]>
+    </script>
+
+    <script id="deviceTemplate" type="text/x-jsrender">
+        <tr id="device{{:id}}" class="device">
+            <td>{{:hardwareId}}</td>
+            <td>{{:creationDate}}</td>
+            <td width="20%">{{:consumerKey}}</td>
+            <td width="20%">{{:consumerSecret}}</td>
+            <td>
+                <button class="btn btn-default btn-xs" type="button" onclick="javascript:getLastLocation({{:id}})">
+                    Last Location
+                </button>
+                <button class="btn btn-default btn-xs" type="button" onclick="javascript:deleteDevice({{:id}})">
+                    Delete
+                </button>
+                <button id="toggleEnablementButton{{:id}}" class="btn btn-default btn-xs" type="button" onclick="javascript:toggleEnablement({{:id}},{{:enabled}})">
+                    {{if enabled == true}}
+                    Disable
+                    {{else}}
+                    Enable
+                    {{/if}}
+                </button>
+            </td>
+        </tr>
+    </script>
+
+    <script id="environmentTemplate" type="text/x-jsrender">
+        <div class="row">
+            <div class="col-xs-6 col-md-3"><em>Id:</em></div>
+            <div class="col-xs-6">{{:id}}</div>
+        </div>
+        <div class="row">
+            <div class="col-xs-6 col-md-3"><em>Created At:</em></div>
+            <div class="col-xs-6">{{:creationDate}}</div>
+        </div>
+        <div class="row">
+            <div class="col-xs-6 col-md-3"><em>Device Enroll Code:</em></div>
+            <div class="col-xs-6">{{:deviceEnrollCode}}</div>
+        </div>
+    </script>
+
+    <style type="text/css">
+        body {
+            height: 100%;
+        }
+
+        .device {
+            -moz-word-break: break-all;
+            -ms-word-break: break-all;
+            -ms-word-wrap: break-word;
+            -o-word-break: break-all;
+            word-break: break-all;
+            word-wrap: break-word;
+        }
+
+        #map-container {
+            height: 450px;
+        }
+    </style>
+
+</head>
 <body>
     <div class="container">
         <div class="row clearfix">
@@ -205,7 +270,7 @@
                         How-To: Query the Environment's Devices
                     </h1>
                 </div>
-                
+
                 <div class="row clearfix">
                     <div class="col-md-12">
                         <div class="panel panel-default">
@@ -233,26 +298,26 @@
                             <div class="form-group col-sm-5">
                                 <label for="consumerKey" class="col-sm-5 control-label">Consumer Key</label>
                                 <div class="col-sm-7">
-                                    <input id="consumerKey" type="text" class="form-control" placeholder="Consumer Key">
+                                    <input id="consumerKey" type="text" class="form-control" placeholder="Consumer Key" />
                                 </div>
                             </div>
 
                             <div class="form-group col-sm-5">
                                 <label for="consumerSecret" class="col-sm-5 control-label">Consumer Secret</label>
                                 <div class="col-sm-7">
-                                    <input id="consumerSecret" type="text" class="form-control" placeholder="Consumer Secret">
+                                    <input id="consumerSecret" type="text" class="form-control" placeholder="Consumer Secret" />
                                 </div>
                             </div>
 
                             <div class="form-group col-sm-2">
                                 <div class="col-sm-12">
-                                    <button class="btn btn-primary" onclick="javascript: getEnvironments();">Query</button>
+                                    <button class="btn btn-primary" onclick=" javascript: getEnvironments(); ">Query</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="pnlResult" style="visibility: hidden;">
                     <h3 class="page-header">Environment</h3>
 
@@ -283,7 +348,7 @@
                                 <th>Created At</th>
                                 <th>Consumer Key</th>
                                 <th>Consumer Secret</th>
-                                <th>&nbsp;</th>
+                                <th>&#160;</th>
                             </tr>
                         </thead>
                         <tbody id="devices"></tbody>
@@ -307,7 +372,7 @@
         <div class="modal-dialog modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&#215;</button>
                     <h4 class="modal-title" id="myModalLabel">Confirmation</h4>
                 </div>
                 <div class="modal-body">
@@ -320,5 +385,27 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="modalMap" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 class="modal-title" id="myModalLabel">Last Location Data</h4>
+                </div>
+                <div class="modal-body">
+                    <div id="map-container"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <label id="lastLocationTime" class="col-sm-5 control-label"></label>
+                    <label id="lastLocationSpeed" class="col-sm-5 control-label"></label>
+                    <label id="lastLocationBearing" class="col-sm-5 control-label"></label>
+                    <label id="lastLocationAccuracy" class="col-sm-5 control-label"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
