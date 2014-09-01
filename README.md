@@ -4,4 +4,4 @@ This sample is a standalone HTML + JavaScript page that shows how to handle the 
 
 About cloud4mobile
 =================
-For more information about cloud4mobile platform, please visit http://wwww.cloud4mobile.com.br.
+For more information about cloud4mobile platform, please visit http://www.cloud4mobile.com.br.
